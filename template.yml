@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: UrlEncoded - Test Service
+
+Parameters:
+  StageName:
+    Type: String
+    Description: The stage deployed to
+    Default: dev
+  SecurityPolicy:
+    Type: String
+    Description: The Security Policy for CloudFront to use
+    Default: "TLSv1.2_2018"
+    AllowedValues:
+      - TLSv1.2_2018 # preference is to use this because it's most up to date
+      - TLSv1.1_2016
+      - TLSv1_2016
+
+Resources:
+  UrlEncodedAPIResource:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Sub "dev"
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: !Ref AWS::StackName
+        schemes:
+          - "https"
+        paths:
+          /api/{proxy+}:
+            x-amazon-apigateway-any-method:
+              responses: {}
+              x-amazon-apigateway-integration:
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UrlEncodedAPILambda.Arn}/invocations
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                type: "aws_proxy"
+
+  UrlEncodedAPILambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.test.urlencoded.ApplicationHandler::handleRequest
+      Runtime: java8
+      CodeUri: ./target/urlencoded-0.0.1-SNAPSHOT.jar
+      MemorySize: 3000
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Timeout: 360
+      Events:
+        GetResource:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: any
+            RestApiId: !Ref UrlEncodedAPIResource
+
+Outputs:
+  UrlEncodedAPI:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${UrlEncodedAPIResource}.execute-api.${AWS::Region}.amazonaws.com/dev"
